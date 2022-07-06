@@ -357,15 +357,24 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 	);*/
 
 	// 透視投影行列
-	XMMATRIX matProjection=
-	XMMatrixPerspectiveFovLH(
-		XMConvertToRadians(45.0f),	//	上下画角45度
-		(float)1280 / 720,			//	アスペクト比(画面横幅/画面縦幅)
-		0.1f, 1000.0f				//	前端、奥端
-	);
+	XMMATRIX matProjection =
+		XMMatrixPerspectiveFovLH(
+			XMConvertToRadians(45.0f),	//	上下画角45度
+			(float)1280 / 720,			//	アスペクト比(画面横幅/画面縦幅)
+			0.1f, 1000.0f				//	前端、奥端
+		);
+
+	// ビュー変換行列
+	XMMATRIX matView;
+	XMFLOAT3 eye(0, 0, -100);
+	XMFLOAT3 target(0, 0, 0);
+	XMFLOAT3 up(0, 1, 0);
+	matView = XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&target), XMLoadFloat3(&up));
+
+	float angle = 0.0f;	//	カメラの回転角
 
 	// 定数バッファに転送
-	constMapTransform->mat = matProjection;
+	constMapTransform->mat = matView * matProjection;
 
 	TexMetadata metadata{};
 	ScratchImage scratchImg{};
