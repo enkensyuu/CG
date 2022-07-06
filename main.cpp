@@ -204,10 +204,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 	// 頂点データ
 	Vertex vertices[] = {
 		// x      y       z       u      v
-		{{  0.0f,100.0f, 0.0f}, {0.0f, 1.0f}}, // 左下
-		{{  0.0f,  0.0f, 0.0f}, {0.0f, 0.0f}}, // 左上
-		{{100.0f,100.0f, 0.0f}, {1.0f, 1.0f}}, // 右下
-		{{100.0f,  0.0f, 0.0f}, {1.0f, 0.0f}}, // 右上
+		{{-50.0f,-50.0f,50.0f}, {0.0f, 1.0f}}, // 左下
+		{{-50.0f, 50.0f,50.0f}, {0.0f, 0.0f}}, // 左上
+		{{ 50.0f,-50.0f,50.0f}, {1.0f, 1.0f}}, // 右下
+		{{ 50.0f, 50.0f,50.0f}, {1.0f, 0.0f}}, // 右上
 	};
 
 
@@ -348,6 +348,24 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 	constMapTransform->mat.r[1].m128_f32[1] = -2.0f / 720;
 	constMapTransform->mat.r[3].m128_f32[0] = -1.0f;
 	constMapTransform->mat.r[3].m128_f32[1] = 1.0f;
+
+	// 並行投影行列の計算
+	/*constMapTransform->mat = XMMatrixOrthographicOffCenterLH(
+		0, 1280,
+		720, 0,
+		0, 1
+	);*/
+
+	// 透視投影行列
+	XMMATRIX matProjection=
+	XMMatrixPerspectiveFovLH(
+		XMConvertToRadians(45.0f),	//	上下画角45度
+		(float)1280 / 720,			//	アスペクト比(画面横幅/画面縦幅)
+		0.1f, 1000.0f				//	前端、奥端
+	);
+
+	// 定数バッファに転送
+	constMapTransform->mat = matProjection;
 
 	TexMetadata metadata{};
 	ScratchImage scratchImg{};
