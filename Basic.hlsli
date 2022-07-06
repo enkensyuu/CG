@@ -1,7 +1,7 @@
-// マテリアル
-cbuffer ConstBufferDataMaterial:register(b0)
+// 3D変換行列
+cbuffer ConstBufferDataTransform:register(b1)
 {
-	float4 color; //色(RGBA)
+	matrix mat;	//	3D変換行列
 };
 
 // 頂点シェーダーの出力構造体

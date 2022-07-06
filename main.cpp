@@ -90,7 +90,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 	IDXGIFactory7* dxgiFactory = nullptr;
 	IDXGISwapChain4* swapChain = nullptr;
 	ID3D12CommandAllocator* cmdAllocator = nullptr;
-	ID3D12GraphicsCommandList* cmmandList = nullptr;
+	ID3D12GraphicsCommandList* commandList = nullptr;
 	ID3D12CommandQueue* cmmandQueue = nullptr;
 	ID3D12DescriptorHeap* rtvHeap = nullptr;
 
@@ -135,7 +135,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 	assert(SUCCEEDED(result));
 
 	//コマンドリストを生成
-	result = device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, cmdAllocator, nullptr, IID_PPV_ARGS(&cmmandList));
+	result = device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, cmdAllocator, nullptr, IID_PPV_ARGS(&commandList));
 	assert(SUCCEEDED(result));
 
 	//コマンドキューの設定＆生成
@@ -203,11 +203,11 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 	};
 	// 頂点データ
 	Vertex vertices[] = {
-		// x      y     z       u     v
-		{{-0.4f, -0.7f, 0.0f}, {0.0f, 1.0f}}, // 左下
-		{{-0.4f, +0.7f, 0.0f}, {0.0f, 0.0f}}, // 左上
-		{{+0.4f, -0.7f, 0.0f}, {1.0f, 1.0f}}, // 右下
-		{{+0.4f, +0.7f, 0.0f}, {1.0f, 0.0f}}, // 右上
+		// x      y       z       u      v
+		{{  0.0f,100.0f, 0.0f}, {0.0f, 1.0f}}, // 左下
+		{{  0.0f,  0.0f, 0.0f}, {0.0f, 0.0f}}, // 左上
+		{{100.0f,100.0f, 0.0f}, {1.0f, 1.0f}}, // 右下
+		{{100.0f,  0.0f, 0.0f}, {1.0f, 0.0f}}, // 右上
 	};
 
 
@@ -306,20 +306,28 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 	struct ConstBufferDateMaterial {
 		XMFLOAT4 color;
 	};
+
+	// 定数バッファ用データ構造体(3D変換行列)
+	struct ConstBufferDataTransform {
+		XMMATRIX mat;	//	3D変換行列
+	};
+
+	ID3D12Resource* constBuffTransform = nullptr;
+	ConstBufferDataTransform* constMapTransform = nullptr;
+
 	//ヒープ設定
 	D3D12_HEAP_PROPERTIES cbHeapProp{};
 	cbHeapProp.Type = D3D12_HEAP_TYPE_UPLOAD;
 	//リソース設定
 	D3D12_RESOURCE_DESC cbResourceDesc{};
 	cbResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-	cbResourceDesc.Width = (sizeof(ConstBufferDateMaterial) + 0xff) & ~0xff;
+	cbResourceDesc.Width = (sizeof(ConstBufferDataTransform) + 0xff) & ~0xff;
 	cbResourceDesc.Height = 1;
 	cbResourceDesc.DepthOrArraySize = 1;
 	cbResourceDesc.MipLevels = 1;
 	cbResourceDesc.SampleDesc.Count = 1;
 	cbResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-	// 定数バッファの処理
-	ID3D12Resource* constBuffMaterial = nullptr;
+
 	//定数バッファの生成
 	result = device->CreateCommittedResource(
 		&cbHeapProp,
@@ -327,8 +335,19 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 		&cbResourceDesc,
 		D3D12_RESOURCE_STATE_GENERIC_READ,
 		nullptr,
-		IID_PPV_ARGS(&constBuffMaterial));
+		IID_PPV_ARGS(&constBuffTransform));
 	assert(SUCCEEDED(result));
+
+	// 定数バッファのマッピング
+	result = constBuffTransform->Map(0, nullptr, (void**)&constMapTransform);	//	マッピング
+	assert(SUCCEEDED(result));
+
+	// 単位行列を代入
+	constMapTransform->mat = XMMatrixIdentity();
+	constMapTransform->mat.r[0].m128_f32[0] = 2.0f / 1280;
+	constMapTransform->mat.r[1].m128_f32[1] = -2.0f / 720;
+	constMapTransform->mat.r[3].m128_f32[0] = -1.0f;
+	constMapTransform->mat.r[3].m128_f32[1] = 1.0f;
 
 	TexMetadata metadata{};
 	ScratchImage scratchImg{};
@@ -541,7 +560,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 	descriptorRange.OffsetInDescriptorsFromTableStart
 		= D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 	// ルートパラメータの設定
-	D3D12_ROOT_PARAMETER rootParams[2] = {};
+	D3D12_ROOT_PARAMETER rootParams[3] = {};
 	// 定数バッファ0番
 	rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;   // 種類
 	rootParams[0].Descriptor.ShaderRegister = 0;                   // 定数バッファ番号
@@ -552,7 +571,11 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 	rootParams[1].DescriptorTable.pDescriptorRanges = &descriptorRange;		  //デスクリプタレンジ
 	rootParams[1].DescriptorTable.NumDescriptorRanges = 1;              		  //デスクリプタレンジ数
 	rootParams[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;               //全てのシェーダから見える
-
+	//定数バッファ1番
+	rootParams[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;	//	種類
+	rootParams[2].Descriptor.ShaderRegister = 1;					//	定数バッファ番号
+	rootParams[2].Descriptor.RegisterSpace = 0;						//	デフォルト値
+	rootParams[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;	//	全てのシェーダから見える
 	// テクスチャサンプラーの設定
 	D3D12_STATIC_SAMPLER_DESC samplerDesc{};
 	samplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;                 //横繰り返し（タイリング）
@@ -626,16 +649,16 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 		barrierDesc.Transition.pResource = backBuffers[bbIndex];//バックバッファを指定
 		barrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;//表示状態から
 		barrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;//描画状態へ
-		cmmandList->ResourceBarrier(1, &barrierDesc);
+		commandList->ResourceBarrier(1, &barrierDesc);
 
 		//2描画先変更
 		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = rtvHeap->GetCPUDescriptorHandleForHeapStart();
 		rtvHandle.ptr += static_cast<unsigned long long>(bbIndex) * device->GetDescriptorHandleIncrementSize(rtvHeapDesc.Type);
-		cmmandList->OMSetRenderTargets(1, &rtvHandle, false, nullptr);
+		commandList->OMSetRenderTargets(1, &rtvHandle, false, nullptr);
 
 		//3画面クリア
 		FLOAT clearColor[] = { 0.1f,0.25f,0.5f,0.0f };
-		cmmandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+		commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
 
 #pragma region グラフィックスコマンド
 
@@ -648,7 +671,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 		viewport.MinDepth = 0.0f;
 		viewport.MaxDepth = 1.0f;
 		// ビューポート設定コマンドを、コマンドリストに積む
-		cmmandList->RSSetViewports(1, &viewport);
+		commandList->RSSetViewports(1, &viewport);
 
 		// シザー矩形
 		D3D12_RECT scissorRect{};
@@ -658,45 +681,48 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 		scissorRect.bottom = scissorRect.top + window_height; // 切り抜き座標下
 
 		// シザー矩形設定コマンドを、コマンドリストに積む
-		cmmandList->RSSetScissorRects(1, &scissorRect);
+		commandList->RSSetScissorRects(1, &scissorRect);
 
 		// パイプラインステートとルートシグネチャの設定コマンド
-		cmmandList->SetPipelineState(pipelineState);
-		cmmandList->SetGraphicsRootSignature(rootSignature);
+		commandList->SetPipelineState(pipelineState);
+		commandList->SetGraphicsRootSignature(rootSignature);
 
 		// 定数バッファビュー(CBV)の設定コマンド
-		cmmandList->SetGraphicsRootConstantBufferView(0, constBuffMaterial->GetGPUVirtualAddress());
+		commandList->SetGraphicsRootConstantBufferView(0, constBuffTransform->GetGPUVirtualAddress());
 		// SRVヒープの設定コマンド
-		cmmandList->SetDescriptorHeaps(1, &srvHeap);
+		commandList->SetDescriptorHeaps(1, &srvHeap);
 		// SRVヒープの先頭ハンドルを取得（SRVを指しているはず）
 		D3D12_GPU_DESCRIPTOR_HANDLE srvGpuHandle = srvHeap->GetGPUDescriptorHandleForHeapStart();
 		// SRVヒープの先頭にあるSRVをルートパラメータ1番に設定
-		cmmandList->SetGraphicsRootDescriptorTable(1, srvGpuHandle);
+		commandList->SetGraphicsRootDescriptorTable(1, srvGpuHandle);
+
+		// 定数バッファビュー(CBV)の設定コマンド
+		commandList->SetGraphicsRootConstantBufferView(2, constBuffTransform->GetGPUVirtualAddress());
 
 		// プリミティブ形状の設定コマンド
-		cmmandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // 三角形リスト
+		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // 三角形リスト
 
 		// 頂点バッファビューの設定コマンド
-		cmmandList->IASetVertexBuffers(0, 1, &vbView);
+		commandList->IASetVertexBuffers(0, 1, &vbView);
 
 		// インデックスバッファビューの設定コマンド
-		cmmandList->IASetIndexBuffer(&ibView);
+		commandList->IASetIndexBuffer(&ibView);
 
 		// 描画コマンド
-		cmmandList->DrawIndexedInstanced(_countof(indices), 1, 0, 0, 0); // 全ての頂点を使って描画
+		commandList->DrawIndexedInstanced(_countof(indices), 1, 0, 0, 0); // 全ての頂点を使って描画
 
 #pragma endregion
 
 		//5元に戻す
 		barrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;//描画状態から
 		barrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;//表示状態へ
-		cmmandList->ResourceBarrier(1, &barrierDesc);
+		commandList->ResourceBarrier(1, &barrierDesc);
 
 		//命令のクローズ
-		result = cmmandList->Close();
+		result = commandList->Close();
 		assert(SUCCEEDED(result));
 		//コマンドリストの実行
-		ID3D12CommandList* cmmandListts[] = { cmmandList };
+		ID3D12CommandList* cmmandListts[] = { commandList };
 		cmmandQueue->ExecuteCommandLists(1, cmmandListts);
 
 		//フリップ
@@ -720,7 +746,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 		result = cmdAllocator->Reset();
 		assert(SUCCEEDED(result));
 		//コマンドリストを貯める準備
-		result = cmmandList->Reset(cmdAllocator, nullptr);
+		result = commandList->Reset(cmdAllocator, nullptr);
 		assert(SUCCEEDED(result));
 
 #pragma endregion
