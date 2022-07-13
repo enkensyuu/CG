@@ -7,10 +7,14 @@
 #include<DirectXMath.h>
 #include <d3dcompiler.h>
 #include<DirectXTex.h>
+#define DIRECTINPUT_VERSION 0x0800
+#include<dinput.h>
 
 #pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"dxgi.lib")
+#pragma comment(lib,"dinput8.lib")
+#pragma comment(lib,"dxguid.lib")
 
 using namespace std;
 using namespace DirectX;
@@ -190,6 +194,27 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 	ID3D12Fence* fence = nullptr;
 	UINT64 fenceVal = 0;
 	result = device->CreateFence(fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence));
+
+	// DirectInputの初期化
+	IDirectInput8* directInput = nullptr;
+	result = DirectInput8Create(
+		w.hInstance, DIRECTINPUT_VERSION, IID_IDirectInput8,
+		(void**)&directInput, nullptr);
+	assert(SUCCEEDED(result));
+
+	// キーボードデバイスの生成
+	IDirectInputDevice8* keybord = nullptr;
+	result = directInput->CreateDevice(GUID_SysKeyboard, &keybord, NULL);
+	assert(SUCCEEDED(result));
+
+	// 入力データ形式のセット
+	result = keybord->SetDataFormat(&c_dfDIKeyboard);
+	assert(SUCCEEDED(result));
+
+	// 排他制御レベルのセット
+	result = keybord->SetCooperativeLevel(
+		hwnd, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE | DISCL_NOWINKEY);
+	assert(SUCCEEDED(result));
 
 #pragma endregion
 
@@ -371,10 +396,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 	XMFLOAT3 up(0, 1, 0);
 	matView = XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&target), XMLoadFloat3(&up));
 
-	float angle = 0.0f;	//	カメラの回転角
-
 	// 定数バッファに転送
 	constMapTransform->mat = matView * matProjection;
+
+	float angle = 0.0f;	//	カメラの回転角
 
 	TexMetadata metadata{};
 	ScratchImage scratchImg{};
@@ -668,6 +693,29 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 #pragma endregion
 
 #pragma region 毎フレーム処理
+		// キーボード情報の取得開始
+		keybord->Acquire();
+
+		// 全キーの入力状態を取得する
+		BYTE key[256] = {};
+		keybord->GetDeviceState(sizeof(key), key);
+
+		if (key[DIK_D] || key[DIK_A])
+		{
+			if (key[DIK_D]) { angle += XMConvertToRadians(1.0f); }
+			else if (key[DIK_A]) { angle -= XMConvertToRadians(1.0f); }
+
+			// angleラジアンだけY軸周りに回転。半径は-100
+			eye.x = -100 * sinf(angle);
+			eye.z = -100 * cosf(angle);
+
+			// ビュー変換行列
+			matView = XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&target), XMLoadFloat3(&up));
+
+		}
+
+		// 定数バッファに転送
+		constMapTransform->mat = matView * matProjection;
 
 		//1バックバッファ番号を取得
 		UINT bbIndex = swapChain->GetCurrentBackBufferIndex();
@@ -706,6 +754,8 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 		scissorRect.right = scissorRect.left + window_widht; // 切り抜き座標右
 		scissorRect.top = 0; // 切り抜き座標上
 		scissorRect.bottom = scissorRect.top + window_height; // 切り抜き座標下
+
+
 
 		// シザー矩形設定コマンドを、コマンドリストに積む
 		commandList->RSSetScissorRects(1, &scissorRect);
