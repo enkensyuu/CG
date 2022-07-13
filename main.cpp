@@ -396,10 +396,16 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 	XMFLOAT3 up(0, 1, 0);
 	matView = XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&target), XMLoadFloat3(&up));
 
-	// 定数バッファに転送
-	constMapTransform->mat = matView * matProjection;
-
 	float angle = 0.0f;	//	カメラの回転角
+
+	// スケーリング倍率
+	XMFLOAT3 scale = { 1.0f,1.0f,1.0f };
+
+	// 回転角
+	XMFLOAT3 rotation = { 0.0f,0.0f,0.0f };
+
+	// 座標
+	XMFLOAT3 position = { 0.0f,0.0f,0.0f };
 
 	TexMetadata metadata{};
 	ScratchImage scratchImg{};
@@ -700,22 +706,36 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 		BYTE key[256] = {};
 		keybord->GetDeviceState(sizeof(key), key);
 
-		if (key[DIK_D] || key[DIK_A])
+		if (key[DIK_UP] || key[DIK_DOWN] || key[DIK_RIGHT] || key[DIK_LEFT])
 		{
-			if (key[DIK_D]) { angle += XMConvertToRadians(1.0f); }
-			else if (key[DIK_A]) { angle -= XMConvertToRadians(1.0f); }
-
-			// angleラジアンだけY軸周りに回転。半径は-100
-			eye.x = -100 * sinf(angle);
-			eye.z = -100 * cosf(angle);
-
-			// ビュー変換行列
-			matView = XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&target), XMLoadFloat3(&up));
-
+			// 座標を移動する処理(Z座標)
+			if (key[DIK_UP]) { position.z += 1.0f; }
+			else if (key[DIK_DOWN]) { position.z -= 1.0f; }
+			if (key[DIK_RIGHT]) { position.x += 1.0f; }
+			else if (key[DIK_LEFT]) { position.x -= 1.0f; }
 		}
 
+		XMMATRIX matScale;	//	スケーリング行列
+		matScale = XMMatrixScaling(scale.x, scale.y, scale.z);
+		
+		XMMATRIX matRot;	//	回転行列
+		matRot = XMMatrixIdentity();
+		matRot *= XMMatrixRotationZ(rotation.z);	//	Z軸まわりに0度回転
+		matRot *= XMMatrixRotationX(rotation.x);	//	X軸まわりに15度回転
+		matRot *= XMMatrixRotationY(rotation.y);	//	Y軸まわりに30度回転
+
+		XMMATRIX matTrans;	//	平行移動行列
+		matTrans = XMMatrixTranslation(position.x, position.y, position.z);	//	(-50.0f, 0, 0)平行移動
+
+		// ワールド変換行列
+		XMMATRIX matWorld;
+		matWorld = XMMatrixIdentity();
+		matWorld *= matScale;	//	ワールド行列にスケーリングを反映
+		matWorld *= matRot;	//	ワールド行列に回転を反映
+		matWorld *= matTrans;	//	ワールド行列に平行移動を反映
+
 		// 定数バッファに転送
-		constMapTransform->mat = matView * matProjection;
+		constMapTransform->mat = matWorld * matView * matProjection;
 
 		//1バックバッファ番号を取得
 		UINT bbIndex = swapChain->GetCurrentBackBufferIndex();
