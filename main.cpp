@@ -219,7 +219,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 #pragma endregion
 
 #pragma region 描画初期化処理
-
 	// 頂点データ構造体
 	struct Vertex
 	{
@@ -229,17 +228,59 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 	// 頂点データ
 	Vertex vertices[] = {
 		// x      y       z       u      v
-		{{-50.0f,-50.0f,50.0f}, {0.0f, 1.0f}}, // 左下
-		{{-50.0f, 50.0f,50.0f}, {0.0f, 0.0f}}, // 左上
-		{{ 50.0f,-50.0f,50.0f}, {1.0f, 1.0f}}, // 右下
-		{{ 50.0f, 50.0f,50.0f}, {1.0f, 0.0f}}, // 右上
+		// 前
+		{{-5.0f,-5.0f,-5.0f}, {0.0f, 1.0f}}, // 左下
+		{{-5.0f, 5.0f,-5.0f}, {0.0f, 0.0f}}, // 左上
+		{{ 5.0f,-5.0f,-5.0f}, {1.0f, 1.0f}}, // 右下
+		{{ 5.0f, 5.0f,-5.0f}, {1.0f, 0.0f}}, // 右上
+		// 後(前面とZ座標の符号が逆)
+		{{-5.0f,-5.0f,5.0f}, {0.0f, 1.0f}}, // 左下
+		{{-5.0f, 5.0f,5.0f}, {0.0f, 0.0f}}, // 左上
+		{{ 5.0f,-5.0f,5.0f}, {1.0f, 1.0f}}, // 右下
+		{{ 5.0f, 5.0f,5.0f}, {1.0f, 0.0f}}, // 右上
+		// 左
+		{{-5.0f,-5.0f,-5.0f}, {0.0f, 1.0f}}, // 左下
+		{{-5.0f,-5.0f, 5.0f}, {0.0f, 0.0f}}, // 左上
+		{{-5.0f, 5.0f,-5.0f}, {1.0f, 1.0f}}, // 右下
+		{{-5.0f, 5.0f, 5.0f}, {1.0f, 0.0f}}, // 右上
+		// 右(前面とX座標の符号が逆)
+		{{5.0f,-5.0f,-5.0f}, {0.0f, 1.0f}}, // 左下
+		{{5.0f,-5.0f, 5.0f}, {0.0f, 0.0f}}, // 左上
+		{{5.0f, 5.0f,-5.0f}, {1.0f, 1.0f}}, // 右下
+		{{5.0f, 5.0f, 5.0f}, {1.0f, 0.0f}}, // 右上
+		// 下
+		{{-5.0f,-5.0f,-5.0f}, {0.0f, 1.0f}}, // 左下
+		{{ 5.0f,-5.0f,-5.0f}, {0.0f, 0.0f}}, // 左上
+		{{-5.0f,-5.0f,-5.0f}, {1.0f, 1.0f}}, // 右下
+		{{ 5.0f,-5.0f, 5.0f}, {1.0f, 0.0f}}, // 右上
+		// 上(前面とY座標の符号が逆)
+		{{-5.0f,5.0f,-5.0f}, {0.0f, 1.0f}}, // 左下
+		{{ 5.0f,5.0f,-5.0f}, {0.0f, 0.0f}}, // 左上
+		{{-5.0f,5.0f,-5.0f}, {1.0f, 1.0f}}, // 右下
+		{{ 5.0f,5.0f, 5.0f}, {1.0f, 0.0f}}, // 右上
 	};
 
 
 	// インデックスデータ
 	unsigned short indices[] = {
+		// 前
 		0, 1, 2, // 三角形1つ目
 		1, 2, 3, // 三角形2つ目
+		// 後(前の面に4加算)
+		4,5,6,	//	三角形3つ目
+		5,6,7,	//	三角形4つ目
+		// 左(後の面に4加算)
+		8,9,10,
+		9,10,11,
+		// 右(左の面に4加算)
+		12,13,14,
+		13,14,15,
+		// 下(右の面に4加算)
+		16,17,18,
+		17,18,19,
+		// 上(下の面に4加算)
+		20,21,22,
+		21,22,23,
 	};
 
 
@@ -673,7 +714,19 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 	result = device->CreateGraphicsPipelineState(&pipelineDesc, IID_PPV_ARGS(&pipelineState));
 	assert(SUCCEEDED(result));
 
+	// リソース設定
+	D3D12_RESOURCE_DESC depthResourceDesc{};
+	depthResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	depthResourceDesc.Width = window_widht;		//	レンダーターゲットに合わせる
+	depthResourceDesc.Height = window_height;	//	レンダーターゲットに合わせる	
+	depthResourceDesc.DepthOrArraySize = 1;
+	depthResourceDesc.Format = DXGI_FORMAT_D32_FLOAT;	//	深度値フォーマット
+	depthResourceDesc.SampleDesc.Count = 1;
+	depthResourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;	//	デプスステンシル
 
+	// 深度値用ヒーププロパティ
+	D3D12_HEAP_PROPERTIES depthHeapProp{};
+	depthHeapProp.Type = D3D12_HEAP_TYPE_DEFAULT;
 
 #pragma endregion
 
@@ -717,7 +770,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 
 		XMMATRIX matScale;	//	スケーリング行列
 		matScale = XMMatrixScaling(scale.x, scale.y, scale.z);
-		
+
 		XMMATRIX matRot;	//	回転行列
 		matRot = XMMatrixIdentity();
 		matRot *= XMMatrixRotationZ(rotation.z);	//	Z軸まわりに0度回転
