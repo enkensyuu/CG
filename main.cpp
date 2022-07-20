@@ -229,6 +229,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	// DirectX初期化処理 ここまで
 
 	// 描画初期化処理 ここから
+	float color1 = 0.0f;
+	float color2 = 1.0f;
+	float color3 = 0.0f;
 
 	// 頂点データ
 	XMFLOAT3 vertices[] = {
@@ -438,9 +441,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	result = constBuffMaterial->Map(0, nullptr, (void**)&constMapMaterial); // マッピング
 	assert(SUCCEEDED(result));
 
-	// 値を書き込むと自動的に転送される
-	constMapMaterial->color = XMFLOAT4(1, 0, 0, 0.5f);	//	RGBAで半透明の赤
-
 	// ルートパラメータの設定
 	D3D12_ROOT_PARAMETER rootParam = {};
 	rootParam.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;	//	定数バッファビュー
@@ -455,7 +455,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 	rootSignatureDesc.pParameters = &rootParam;	//	ルートパラメーターの先頭アドレス
 	rootSignatureDesc.NumParameters = 1;		//	ルートパラメーター数
-	
+
 	// ルートシグネチャのシリアライズ
 	ID3DBlob* rootSigBlob = nullptr;
 	result = D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1_0,
@@ -516,7 +516,22 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		rtvHandle.ptr += bbIndex * device->GetDescriptorHandleIncrementSize(rtvHeapDesc.Type);
 		commandList->OMSetRenderTargets(1, &rtvHandle, false, nullptr);
 
-		// 3.画面クリア      	R     G     B    A
+		// 3.画面クリア
+		// 値を書き込むと自動的に転送される
+		constMapMaterial->color = XMFLOAT4(color1+=0.002, color2 -= 0.002f, color3 += 0.002f, 0.5f);
+		if (color1 >= 1.0f)
+		{
+			color1 = 0.0f;
+		}
+		if (color2 <= 0.0f)
+		{
+			color2 = 1.0f;
+		}
+		if (color3 >= 1.0f)
+		{
+			color3 = 0.0f;
+		}
+
 		FLOAT clearColor[] = { 0.1f,0.25f, 0.5f,0.0f }; // 青っぽい色
 		commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
 
