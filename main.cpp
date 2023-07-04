@@ -235,10 +235,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 		{{ 5.0f,-5.0f,-5.0f},{},{1.0f, 1.0f}}, // 右下
 		{{ 5.0f, 5.0f,-5.0f},{},{1.0f, 0.0f}}, // 右上
 		// 後(前面とZ座標の符号が逆)
-		{{-5.0f,-5.0f, 5.0f},{},{0.0f, 1.0f}}, // 左下
-		{{-5.0f, 5.0f, 5.0f},{},{0.0f, 0.0f}}, // 左上
-		{{ 5.0f,-5.0f, 5.0f},{},{1.0f, 1.0f}}, // 右下
-		{{ 5.0f, 5.0f, 5.0f},{},{1.0f, 0.0f}}, // 右上
+		{{ 5.0f,-5.0f, 5.0f},{},{0.0f, 1.0f}}, // 左下
+		{{ 5.0f, 5.0f, 5.0f},{},{0.0f, 0.0f}}, // 左上
+		{{-5.0f,-5.0f, 5.0f},{},{1.0f, 1.0f}}, // 右下
+		{{-5.0f, 5.0f, 5.0f},{},{1.0f, 0.0f}}, // 右上
 		// 左
 		{{-5.0f,-5.0f, 5.0f},{},{0.0f, 1.0f}}, // 左下
 		{{-5.0f, 5.0f, 5.0f},{},{0.0f, 0.0f}}, // 左上
@@ -250,10 +250,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 		{{ 5.0f,-5.0f, 5.0f},{},{1.0f, 1.0f}}, // 右下
 		{{ 5.0f, 5.0f, 5.0f},{},{1.0f, 0.0f}}, // 右上
 		// 下
-		{{-5.0f,-5.0f, 5.0f},{},{0.0f, 1.0f}}, // 左下
-		{{-5.0f,-5.0f,-5.0f},{},{0.0f, 0.0f}}, // 左上
-		{{ 5.0f,-5.0f, 5.0f},{},{1.0f, 1.0f}}, // 右下
-		{{ 5.0f,-5.0f,-5.0f},{},{1.0f, 0.0f}}, // 右上
+		{{ 5.0f,-5.0f,-5.0f},{},{0.0f, 1.0f}}, // 左下
+		{{ 5.0f,-5.0f, 5.0f},{},{0.0f, 0.0f}}, // 左上
+		{{-5.0f,-5.0f,-5.0f},{},{1.0f, 1.0f}}, // 右下
+		{{-5.0f,-5.0f, 5.0f},{},{1.0f, 0.0f}}, // 右上
 		// 上(前面とY座標の符号が逆)
 		{{-5.0f, 5.0f,-5.0f},{},{0.0f, 1.0f}}, // 左下
 		{{-5.0f, 5.0f, 5.0f},{},{0.0f, 0.0f}}, // 左上
@@ -264,26 +264,36 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 
 	// インデックスデータ
 	unsigned short indices[] = {
-		// 前
-		0,1,2,	//	三角形1つ目
-		2,1,3,	//	三角形2つ目
-		// 後(前の面に4加算)
-		6,5,4,	//	三角形3つ目
-		7,5,6,	//	三角形4つ目
-		// 左(後の面に4加算)
-		8,9,10,
-		10,9,11,
-		// 右(左の面に4加算)
-		12,13,14,
-		14,13,15,
-		// 下(右の面に4加算)
-		16,17,18,
-		18,17,19,
-		// 上(下の面に4加算)
-		20,21,22,
-		22,21,23,
+		 0,  1,  3,  3,  2,  0,
+		4,  5,  7,  7,  6,  4,
+		8,  9,  11, 11, 10, 8,
+		12, 13, 15, 15, 14, 12,
+		16, 17, 19, 19, 18, 16,
+		20, 21, 23, 23, 22, 20
 	};
 
+	for (int i = 0; i < _countof(indices) / 3; i++)
+	{ // 三角形1つごとに計算していく
+		// 三角形のインデックスを取り出して、一時的な変数に入れる
+		unsigned short index0 = indices[i * 3 + 0];
+		unsigned short index1 = indices[i * 3 + 1];
+		unsigned short index2 = indices[i * 3 + 2];
+		// 三角形を構成する頂点座標をベクトルに代入
+		XMVECTOR p0 = XMLoadFloat3(&vertices[index0].pos);
+		XMVECTOR p1 = XMLoadFloat3(&vertices[index1].pos);
+		XMVECTOR p2 = XMLoadFloat3(&vertices[index2].pos);
+		// po→p1ベクトル、po→p2ベクトルを計算(ベクトルの減算)
+		XMVECTOR v1 = XMVectorSubtract(p1, p0);
+		XMVECTOR v2 = XMVectorSubtract(p2, p0);
+		// 外積は両方から垂直なベクトル
+		XMVECTOR normal = XMVector3Cross(v1, v2);
+		// 正規化(長さを1にする)
+		normal = XMVector3Normalize(normal);
+		// 求めた法線を頂点データに代入
+		XMStoreFloat3(&vertices[index0].normal, normal);
+		XMStoreFloat3(&vertices[index1].normal, normal);
+		XMStoreFloat3(&vertices[index2].normal, normal);
+	}
 
 	// 頂点データ全体のサイズ = 頂点データ一つ分のサイズ * 頂点データの要素数
 	UINT sizeVB = static_cast<UINT>(sizeof(vertices[0]) * _countof(vertices));
@@ -606,7 +616,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
 		},
 		{ // 法線ベクトル
-			"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 
+			"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,
 			D3D12_APPEND_ALIGNED_ELEMENT,
 			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
 		},
