@@ -401,8 +401,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 		XMMATRIX mat;	//	3D変換行列
 	};
 
-	ID3D12Resource* constBuffMaterial = nullptr;
-	ConstBufferDataMaterial* constMapMaterial = nullptr;
 	ID3D12Resource* constBuffTransform = nullptr;
 	ConstBufferDataTransform* constMapTransform = nullptr;
 
@@ -419,7 +417,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 	cbResourceDesc.SampleDesc.Count = 1;
 	cbResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 
-
+	ID3D12Resource* constBuffMaterial = nullptr;
 	//定数バッファの生成
 	result = device->CreateCommittedResource(
 		&cbHeapProp,
@@ -431,6 +429,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 	assert(SUCCEEDED(result));
 
 	// 定数バッファのマッピング
+	ConstBufferDataMaterial* constMapMaterial = nullptr;
 	result = constBuffMaterial->Map(0, nullptr, (void**)&constMapMaterial);	//	マッピング
 	assert(SUCCEEDED(result));
 
